@@ -227,7 +227,7 @@ class Scraper:
         # Every torrent option for current movie
         torrents = movie.get('torrents')
         # Remove illegal file/directory characters
-        movie_name = movie.get('title_long').translate({ord(i):None for i in "'/\:*?<>|"})
+        movie_name = movie.get('title_long').translate({ord(i): None for i in "'/\\:*?<>|"})
 
         # Used to multiple download messages for multi-folder categorization
         is_download_successful = False

@@ -146,6 +146,14 @@ def main():
                         const=1,
                         nargs='?')
 
+    parser.add_argument('-l', '--language',
+                        help='Enter language',
+                        dest='language',
+                        type=str.lower,
+                        required=False,
+                        default='en',
+                        const='en',
+                        nargs='?')
 
     try:
         args = parser.parse_args()

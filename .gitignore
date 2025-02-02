@@ -1,0 +1,4 @@
+build/
+dist/
+test/
+YTS_Scraper.egg-info/

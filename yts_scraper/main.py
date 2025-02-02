@@ -9,10 +9,11 @@ def main():
 
     parser = argparse.ArgumentParser(description=desc)
     parser.add_argument('-o', '--output',
-                        help='Output Directory',
-                        dest='output',
-                        type=str.lower,
-                        required=False)
+                    help='Output Directory',
+                    dest='output',
+                    type=str.lower,
+                    required=False,
+                    default='Movies')
 
     parser.add_argument('-q', '--quality',
                         help='''Movie Quality.

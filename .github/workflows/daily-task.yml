@@ -31,26 +31,3 @@ jobs:
 
       - name: Run scraper for 1080p
         run: yts-scraper -q 1080p
-
-      - name: Add to RealDebrid
-        env:
-          REALDEBRID_API_KEY: ${{ secrets.REALDEBRID_API_KEY }}
-        run: |
-          python -c "
-import os
-import requests
-
-def add_to_realdebrid(api_key, torrent_file):
-    url = 'https://api.real-debrid.com/rest/1.0/torrents/addTorrent'
-    headers = {'Authorization': 'Bearer ' + api_key}
-    files = {'file': open(torrent_file, 'rb')}
-    response = requests.post(url, headers=headers, files=files)
-    if response.status_code == 201:
-        print(f'Successfully added {torrent_file} to RealDebrid.')
-    else:
-        print(f'Failed to add {torrent_file} to RealDebrid: {response.content}')
-
-api_key = os.getenv('REALDEBRID_API_KEY')
-torrent_file = 'YTS-Scraper.csv'  # This is the path where your torrents are located
-add_to_realdebrid(api_key, torrent_file)
-"

@@ -29,6 +29,9 @@ jobs:
       - name: Run scraper for 2160p
         run: yts-scraper -q 2160p
 
+      - name: Run scraper for 1080p
+        run: yts-scraper -q 1080p
+
       - name: Add to RealDebrid
         env:
           REALDEBRID_API_KEY: ${{ secrets.REALDEBRID_API_KEY }}

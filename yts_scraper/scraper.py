@@ -133,25 +133,23 @@ class Scraper:
         if math.trunc(self.movie_count / self.limit) + 1 == 1:
             page_count = 2
         else:
-            page_count = math.trunc(self.movie_count / self.limit) + 1
+    page_count = math.trunc(self.movie_count / self.limit) + 1
 
-        range_ = range(int(self.page_arg), page_count)
+range_ = range(int(self.page_arg), page_count)
 
-        print('Initializing download with these parameters:\n')
-        print('Directory:\t{}\nQuality:\t{}\nMovie Genre:\t{}\nMinimum Rating:\t{}\nCategorization:\t{}\nMinimum Year:\t{}\nStarting page:\t{}\nMovie posters:\t{}\nAppend IMDb ID:\t{}\nMultiproce[...]
-              .format(
-                  self.directory,
-                  self.quality,
-                  self.genre,
-                  self.minimum_rating,
-                  self.categorize,
-                  self.year_limit,
-                  self.page_arg,
-                  str(self.poster),
-                  str(self.imdb_id),
-                  str(self.multiprocess)
-                  )
-             )
+print('Initializing download with these parameters:\n'
+      'Directory:\t{}\nQuality:\t{}\nMovie Genre:\t{}\nMinimum Rating:\t{}\nCategorization:\t{}\nMinimum Year:\t{}\nStarting page:\t{}\nMovie posters:\t{}\nAppend IMDb ID:\t{}\nMultiprocess:\t{}'.format(
+    self.directory,
+    self.quality,
+    self.genre,
+    self.minimum_rating,
+    self.categorize,
+    self.year_limit,
+    self.page_arg,
+    str(self.poster),
+    str(self.imdb_id),
+    str(self.multiprocess)
+))
 
         if self.movie_count <= 0:
             print('Could not find any movies with given parameters')

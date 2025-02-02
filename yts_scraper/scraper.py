@@ -1,3 +1,4 @@
+
 import os
 import sys
 import math
@@ -7,16 +8,6 @@ from concurrent.futures.thread import ThreadPoolExecutor
 import requests
 from tqdm import tqdm
 from fake_useragent import UserAgent
-
-def add_to_realdebrid(api_key, torrent_file):
-    url = "https://api.real-debrid.com/rest/1.0/torrents/addTorrent"
-    headers = {"Authorization": "Bearer " + api_key}
-    files = {"file": open(torrent_file, "rb")}
-    response = requests.post(url, headers=headers, files=files)
-    if response.status_code == 201:
-        print(f"Successfully added {torrent_file} to RealDebrid.")
-    else:
-        print(f"Failed to add {torrent_file} to RealDebrid: {response.content}")
 
 class Scraper:
     """
@@ -38,6 +29,7 @@ class Scraper:
         self.imdb_id = args.imdb_id
         self.multiprocess = args.multiprocess
         self.csv_only = args.csv_only
+        self.language = args.language
 
         self.movie_count = None
         self.url = None
@@ -45,6 +37,7 @@ class Scraper:
         self.skip_exit_condition = None
         self.downloaded_movie_ids = None
         self.pbar = None
+
 
         # Set output directory
         if args.output:
@@ -56,6 +49,7 @@ class Scraper:
                 os.makedirs(self.categorize.title(), exist_ok=True)
             self.directory = os.path.join(os.path.curdir, self.categorize.title())
 
+
         # Args for downloading in reverse chronological order
         if args.sort_by == 'latest':
             self.sort_by = 'date_added'
@@ -63,8 +57,10 @@ class Scraper:
         else:
             self.order_by = 'asc'
 
+
         # YTS API has a limit of 50 entries
         self.limit = 50
+
 
     # Connect to API and extract initial data
     def __get_api_data(self):
@@ -108,6 +104,7 @@ class Scraper:
         except json.decoder.JSONDecodeError:
             print('Could not decode JSON')
 
+
         # Adjust movie count according to starting page
         if self.page_arg == 1:
             movie_count = data.get('data').get('movie_count')
@@ -133,23 +130,26 @@ class Scraper:
         if math.trunc(self.movie_count / self.limit) + 1 == 1:
             page_count = 2
         else:
-    page_count = math.trunc(self.movie_count / self.limit) + 1
+            page_count = math.trunc(self.movie_count / self.limit) + 1
 
-range_ = range(int(self.page_arg), page_count)
+        range_ = range(int(self.page_arg), page_count)
 
-print('Initializing download with these parameters:\n'
-      'Directory:\t{}\nQuality:\t{}\nMovie Genre:\t{}\nMinimum Rating:\t{}\nCategorization:\t{}\nMinimum Year:\t{}\nStarting page:\t{}\nMovie posters:\t{}\nAppend IMDb ID:\t{}\nMultiprocess:\t{}'.format(
-    self.directory,
-    self.quality,
-    self.genre,
-    self.minimum_rating,
-    self.categorize,
-    self.year_limit,
-    self.page_arg,
-    str(self.poster),
-    str(self.imdb_id),
-    str(self.multiprocess)
-))
+
+        print('Initializing download with these parameters:\n')
+        print('Directory:\t{}\nQuality:\t{}\nMovie Genre:\t{}\nMinimum Rating:\t{}\nCategorization:\t{}\nMinimum Year:\t{}\nStarting page:\t{}\nMovie posters:\t{}\nAppend IMDb ID:\t{}\nMultiprocess:\t{}\n'
+              .format(
+                  self.directory,
+                  self.quality,
+                  self.genre,
+                  self.minimum_rating,
+                  self.categorize,
+                  self.year_limit,
+                  self.page_arg,
+                  str(self.poster),
+                  str(self.imdb_id),
+                  str(self.multiprocess)
+                  )
+             )
 
         if self.movie_count <= 0:
             print('Could not find any movies with given parameters')
@@ -206,10 +206,6 @@ print('Initializing download with these parameters:\n'
         self.pbar.close()
         print('Download finished.')
 
-        # Add torrents to RealDebrid after download
-        api_key = os.getenv("REALDEBRID_API_KEY")
-        for torrent_file in self.downloaded_movie_ids:  # Assuming self.downloaded_movie_ids contains the list of downloaded torrents
-            add_to_realdebrid(api_key, torrent_file)
 
     # Determine which .torrent files to download
     def __filter_torrents(self, movie):
@@ -224,11 +220,15 @@ print('Initializing download with these parameters:\n'
 
         if year < self.year_limit:
             return
+        if language != self.language:
+            return
+
+
 
         # Every torrent option for current movie
         torrents = movie.get('torrents')
         # Remove illegal file/directory characters
-        movie_name = movie.get('title_long').translate({ord(i): None for i in "'/\:*?<>|"})
+        movie_name = movie.get('title_long').translate({ord(i):None for i in "'/\:*?<>|"})
 
         # Used to multiple download messages for multi-folder categorization
         is_download_successful = False
@@ -264,6 +264,7 @@ print('Initializing download with these parameters:\n'
             if is_download_successful and self.quality == 'all' or self.quality == quality:
                 tqdm.write('Downloaded {} {}'.format(movie_name, quality.upper()))
                 self.pbar.update()
+
 
     # Creates a file path for each download
     def __build_path(self, movie_name, rating, quality, movie_genre, imdb_id):
@@ -339,6 +340,8 @@ print('Initializing download with these parameters:\n'
                              'IMDb URL': 'https://www.imdb.com/title/' + imdb_id,
                              'Torrent URL': torrent_url
                             })
+
+
 
     # Is triggered when the script hits 10 consecutive existing files
     def __prompt_existing_files(self):

@@ -44,27 +44,41 @@ jobs:
         
     - name: Upload torrents to Real-Debrid with smart rate limiting
       run: |
+        echo "🔍 Starting Real-Debrid upload step..."
+        echo "📍 Current working directory: $(pwd)"
+        echo "📂 Listing files: $(ls -la | head -5)"
+        
         if [ -z "$REAL_DEBRID_API_KEY" ]; then
           echo "⚠️  REAL_DEBRID_API_KEY not set, skipping Real-Debrid upload"
           echo "💡 To enable Real-Debrid integration, add your API key as a GitHub secret"
+          echo "🔧 Secret should be named exactly: REAL_DEBRID_API_KEY"
           exit 0
         fi
         
+        echo "✅ REAL_DEBRID_API_KEY is set (length: ${#REAL_DEBRID_API_KEY} characters)"
         echo "🚀 Starting smart Real-Debrid upload..."
         echo "📂 Torrent directory: $TORRENT_DIR"
         echo "🔢 Max uploads per run: $MAX_UPLOADS_PER_RUN"
         
         # Check if the script exists
         if [ ! -f "real_debrid_smart_uploader.py" ]; then
-          echo "❌ real_debrid_smart_uploader.py not found"
+          echo "❌ real_debrid_smart_uploader.py not found in $(pwd)"
+          echo "📁 Available Python files:"
+          ls -la *.py || echo "No Python files found"
           exit 1
         fi
         
-        # Run the smart uploader
-        python real_debrid_smart_uploader.py || {
+        echo "✅ Found real_debrid_smart_uploader.py"
+        
+        # Run the smart uploader with explicit error capture
+        echo "🚀 Executing: python real_debrid_smart_uploader.py"
+        python real_debrid_smart_uploader.py 2>&1 || {
           echo "❌ Real-Debrid smart uploader failed with exit code $?"
+          echo "📋 Check the error output above for details"
           exit 1
         }
+        
+        echo "✅ Real-Debrid upload step completed successfully"
       env:
         REAL_DEBRID_API_KEY: ${{ secrets.REAL_DEBRID_API_KEY }}
         TORRENT_DIR: Downloads/2160p_Movies

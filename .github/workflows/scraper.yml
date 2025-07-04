@@ -46,11 +46,33 @@ jobs:
       continue-on-error: true
       run: |
         if [ -z "$REAL_DEBRID_API_KEY" ]; then
-          echo "REAL_DEBRID_API_KEY not set, skipping Real-Debrid upload"
+          echo "⚠️  REAL_DEBRID_API_KEY not set, skipping Real-Debrid upload"
+          echo "💡 To enable Real-Debrid integration, add your API key as a GitHub secret"
           exit 0
         fi
         echo "🔍 Checking for cached torrents on Real-Debrid..."
-        python real_debrid_cached_uploader.py
+        echo "📂 Torrent directory: $TORRENT_DIR"
+        echo "🔢 Max uploads per run: $MAX_CACHED_UPLOADS_PER_RUN"
+        
+        # Check if the script exists
+        if [ ! -f "real_debrid_cached_uploader.py" ]; then
+          echo "❌ real_debrid_cached_uploader.py not found"
+          exit 1
+        fi
+        
+        # Test script syntax first
+        echo "🔍 Testing script syntax..."
+        python -m py_compile real_debrid_cached_uploader.py || {
+          echo "❌ Script has syntax errors"
+          exit 1
+        }
+        
+        # Run the cached uploader with error handling
+        echo "🚀 Running cached uploader..."
+        python real_debrid_cached_uploader.py || {
+          echo "❌ Real-Debrid cached uploader failed with exit code $?"
+          exit 1
+        }
       env:
         REAL_DEBRID_API_KEY: ${{ secrets.REAL_DEBRID_API_KEY }}
         TORRENT_DIR: Downloads/2160p_Movies
@@ -112,6 +134,7 @@ jobs:
       if: always()
       with:
         name: |
-          2160p-torrents-*
+          2160p-magnets-*
           scraper-logs-*
-        skipRecent: 10
+        useGlob: true
+        failOnError: false

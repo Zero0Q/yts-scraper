@@ -42,7 +42,7 @@ jobs:
       env:
         PYTHONPATH: ${{ github.workspace }}
         
-    - name: Upload cached torrents to Real-Debrid
+    - name: Upload torrents to Real-Debrid with smart rate limiting
       run: |
         if [ -z "$REAL_DEBRID_API_KEY" ]; then
           echo "⚠️  REAL_DEBRID_API_KEY not set, skipping Real-Debrid upload"
@@ -50,39 +50,25 @@ jobs:
           exit 0
         fi
         
-        echo "🔍 Checking for cached torrents on Real-Debrid..."
+        echo "🚀 Starting smart Real-Debrid upload..."
         echo "📂 Torrent directory: $TORRENT_DIR"
-        echo "🔢 Max uploads per run: $MAX_CACHED_UPLOADS_PER_RUN"
+        echo "🔢 Max uploads per run: $MAX_UPLOADS_PER_RUN"
         
         # Check if the script exists
-        if [ ! -f "real_debrid_cached_uploader.py" ]; then
-          echo "❌ real_debrid_cached_uploader.py not found"
+        if [ ! -f "real_debrid_smart_uploader.py" ]; then
+          echo "❌ real_debrid_smart_uploader.py not found"
           exit 1
         fi
         
-        # Check Python environment
-        echo "🐍 Python version: $(python --version)"
-        echo "🔍 Checking installed packages..."
-        pip list | grep -E "(requests|tqdm)"
-        
-        # Test script syntax first
-        echo "🔍 Testing script syntax..."
-        python -m py_compile real_debrid_cached_uploader.py || {
-          echo "❌ Script has syntax errors"
-          exit 1
-        }
-        
-        # Run the cached uploader with verbose error handling
-        echo "🚀 Running cached uploader..."
-        python real_debrid_cached_uploader.py 2>&1 || {
-          echo "❌ Real-Debrid cached uploader failed with exit code $?"
-          echo "📋 Last few lines of output above should show the error"
+        # Run the smart uploader
+        python real_debrid_smart_uploader.py || {
+          echo "❌ Real-Debrid smart uploader failed with exit code $?"
           exit 1
         }
       env:
         REAL_DEBRID_API_KEY: ${{ secrets.REAL_DEBRID_API_KEY }}
         TORRENT_DIR: Downloads/2160p_Movies
-        MAX_CACHED_UPLOADS_PER_RUN: 100
+        MAX_UPLOADS_PER_RUN: 20
 
     - name: Upload scraped torrents as artifacts
       uses: actions/upload-artifact@v4

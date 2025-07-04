@@ -132,9 +132,17 @@ jobs:
     - name: Clean up old artifacts (keep last 10 runs)
       uses: geekyeggo/delete-artifact@v2
       if: always()
+      continue-on-error: true
       with:
-        name: |
-          2160p-magnets-*
-          scraper-logs-*
+        name: 2160p-magnets-*
+        useGlob: true
+        failOnError: false
+        
+    - name: Clean up old log artifacts
+      uses: geekyeggo/delete-artifact@v2
+      if: always()
+      continue-on-error: true
+      with:
+        name: scraper-logs-*
         useGlob: true
         failOnError: false

@@ -42,8 +42,12 @@ jobs:
         PYTHONPATH: ${{ github.workspace }}
         
     - name: Upload torrents to Real-Debrid
-      if: ${{ secrets.REAL_DEBRID_API_KEY }}
+      continue-on-error: true
       run: |
+        if [ -z "$REAL_DEBRID_API_KEY" ]; then
+          echo "REAL_DEBRID_API_KEY not set, skipping Real-Debrid upload"
+          exit 0
+        fi
         python .github/scripts/upload_to_real_debrid.py
       env:
         REAL_DEBRID_API_KEY: ${{ secrets.REAL_DEBRID_API_KEY }}

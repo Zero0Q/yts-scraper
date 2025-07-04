@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Real-Debrid Auto Upload Script
-Automatically uploads .torrent files to Real-Debrid using their API
+Automatically uploads magnet links to Real-Debrid using their API
 """
 
 import os
@@ -49,32 +49,35 @@ class RealDebridUploader:
             self.logger.error(f"❌ API connection error: {e}")
             return False
     
-    def upload_torrent_file(self, torrent_path):
-        """Upload a single torrent file to Real-Debrid"""
+    def upload_magnet_link(self, magnet_link, movie_info):
+        """Upload a magnet link to Real-Debrid"""
         try:
-            with open(torrent_path, 'rb') as torrent_file:
-                files = {'file': torrent_file}
+            data = {'magnet': magnet_link}
+            
+            response = requests.post(
+                f"{self.base_url}/torrents/addMagnet",
+                headers=self.headers,
+                data=data,
+                timeout=30
+            )
+            
+            if response.status_code == 201:
+                result = response.json()
+                torrent_id = result.get('id')
+                uri = result.get('uri')
+                movie_name = movie_info.get('movie_name', 'Unknown')
+                quality = movie_info.get('quality', 'Unknown')
+                self.logger.info(f"✅ Uploaded: {movie_name} ({quality}) (ID: {torrent_id})")
+                return {'success': True, 'id': torrent_id, 'uri': uri}
+            else:
+                error_msg = response.text
+                movie_name = movie_info.get('movie_name', 'Unknown')
+                self.logger.error(f"❌ Failed to upload {movie_name}: {error_msg}")
+                return {'success': False, 'error': error_msg}
                 
-                response = requests.post(
-                    f"{self.base_url}/torrents/addTorrent",
-                    headers={key: value for key, value in self.headers.items() if key != "Content-Type"},
-                    files=files,
-                    timeout=30
-                )
-                
-                if response.status_code == 201:
-                    result = response.json()
-                    torrent_id = result.get('id')
-                    uri = result.get('uri')
-                    self.logger.info(f"✅ Uploaded: {os.path.basename(torrent_path)} (ID: {torrent_id})")
-                    return {'success': True, 'id': torrent_id, 'uri': uri}
-                else:
-                    error_msg = response.text
-                    self.logger.error(f"❌ Failed to upload {os.path.basename(torrent_path)}: {error_msg}")
-                    return {'success': False, 'error': error_msg}
-                    
         except Exception as e:
-            self.logger.error(f"❌ Error uploading {torrent_path}: {e}")
+            movie_name = movie_info.get('movie_name', 'Unknown')
+            self.logger.error(f"❌ Error uploading {movie_name}: {e}")
             return {'success': False, 'error': str(e)}
     
     def get_torrent_info(self, torrent_id):
@@ -125,14 +128,23 @@ class RealDebridUploader:
             self.logger.error(f"Error selecting files: {e}")
             return False
 
-def find_torrent_files(directory):
-    """Find all .torrent files in the directory"""
-    torrent_files = []
+def find_magnet_files(directory):
+    """Find all .magnet files in the directory"""
+    magnet_files = []
     for root, dirs, files in os.walk(directory):
         for file in files:
-            if file.endswith('.torrent'):
-                torrent_files.append(os.path.join(root, file))
-    return torrent_files
+            if file.endswith('.magnet'):
+                magnet_files.append(os.path.join(root, file))
+    return magnet_files
+
+def load_magnet_info(magnet_file_path):
+    """Load magnet link information from file"""
+    try:
+        with open(magnet_file_path, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error loading magnet file {magnet_file_path}: {e}")
+        return None
 
 def main():
     """Main function"""
@@ -140,7 +152,7 @@ def main():
     
     # Get environment variables
     api_key = os.environ.get('REAL_DEBRID_API_KEY')
-    torrent_dir = os.environ.get('TORRENT_DIR', 'Downloads/2160p_Movies')
+    magnet_dir = os.environ.get('TORRENT_DIR', 'Downloads/2160p_Movies')
     
     if not api_key:
         logger.error("❌ REAL_DEBRID_API_KEY environment variable not set")
@@ -149,9 +161,9 @@ def main():
         logger.info("   2. Add it as a GitHub secret named REAL_DEBRID_API_KEY")
         sys.exit(1)
     
-    if not os.path.exists(torrent_dir):
-        logger.warning(f"⚠️  Torrent directory not found: {torrent_dir}")
-        logger.info("No torrents to upload.")
+    if not os.path.exists(magnet_dir):
+        logger.warning(f"⚠️  Magnet directory not found: {magnet_dir}")
+        logger.info("No magnet links to upload.")
         return
     
     # Initialize uploader
@@ -162,22 +174,33 @@ def main():
         logger.error("❌ Failed to connect to Real-Debrid API")
         sys.exit(1)
     
-    # Find torrent files
-    torrent_files = find_torrent_files(torrent_dir)
+    # Find magnet files
+    magnet_files = find_magnet_files(magnet_dir)
     
-    if not torrent_files:
-        logger.info("📭 No .torrent files found to upload")
+    if not magnet_files:
+        logger.info("📭 No .magnet files found to upload")
         return
     
-    logger.info(f"🔍 Found {len(torrent_files)} torrent files to upload")
+    logger.info(f"🔍 Found {len(magnet_files)} magnet links to upload")
     
-    # Upload torrents
+    # Upload magnet links
     successful_uploads = 0
     failed_uploads = 0
     
-    for torrent_file in torrent_files:
-        logger.info(f"📤 Uploading: {os.path.basename(torrent_file)}")
-        result = uploader.upload_torrent_file(torrent_file)
+    for magnet_file in magnet_files:
+        magnet_info = load_magnet_info(magnet_file)
+        if not magnet_info:
+            failed_uploads += 1
+            continue
+            
+        magnet_link = magnet_info.get('magnet_link')
+        if not magnet_link:
+            logger.error(f"❌ No magnet link found in {os.path.basename(magnet_file)}")
+            failed_uploads += 1
+            continue
+            
+        logger.info(f"📤 Uploading: {magnet_info.get('movie_name', 'Unknown')} ({magnet_info.get('quality', 'Unknown')})")
+        result = uploader.upload_magnet_link(magnet_link, magnet_info)
         
         if result['success']:
             successful_uploads += 1
@@ -191,7 +214,7 @@ def main():
     logger.info(f"📊 Upload Summary:")
     logger.info(f"   ✅ Successful: {successful_uploads}")
     logger.info(f"   ❌ Failed: {failed_uploads}")
-    logger.info(f"   📁 Total files: {len(torrent_files)}")
+    logger.info(f"   🧲 Total magnet links: {len(magnet_files)}")
     
     if failed_uploads > 0:
         logger.warning(f"⚠️  {failed_uploads} uploads failed. Check logs above for details.")

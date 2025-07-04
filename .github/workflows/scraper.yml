@@ -57,9 +57,9 @@ jobs:
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: 2160p-torrents-${{ github.run_number }}
+        name: 2160p-magnets-${{ github.run_number }}
         path: |
-          Downloads/2160p_Movies/**/*.torrent
+          Downloads/2160p_Movies/**/*.magnet
           Downloads/2160p_Movies/**/*.jpg
         retention-days: 30
         
@@ -80,24 +80,24 @@ jobs:
         body: |
           🎬 **Weekly 2160p Movie Collection**
           
-          This release contains high-quality 2160p (4K/UHD) movie torrents scraped from YTS.
+          This release contains high-quality 2160p (4K/UHD) movie magnet links scraped from YTS.
           
           **📊 Stats:**
           - Run #${{ github.run_number }}
           - Date: ${{ github.event.head_commit.timestamp }}
           - Quality: 2160p only
-          - Minimum Rating: 6.0+
-          - Year Range: 2020+
+          - Rating: All ratings
+          - Year Range: All years
           
           **📁 Organization:**
-          Files are organized by rating and genre for easy browsing.
+          Files are organized by movie name and year: "Movie Name (Year)/"
           
-          **🔗 Real-Debrid:**
-          These .torrent files are automatically uploaded to Real-Debrid for instant streaming.
+          **🧲 Magnet Links:**
+          These magnet links are automatically uploaded to Real-Debrid for instant streaming.
           
           ⭐ Star this repo to get notified of new releases!
         files: |
-          Downloads/2160p_Movies/**/*.torrent
+          Downloads/2160p_Movies/**/*.magnet
           Downloads/2160p_Movies/**/*.jpg
         draft: false
         prerelease: false

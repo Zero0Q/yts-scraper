@@ -46,17 +46,17 @@ def create_args_for_2160p():
             # Genre settings - get all genres for maximum coverage
             self.genre = 'all'
             
-            # Rating settings - minimum 6.0 for good quality movies
-            self.rating = '6'
+            # Rating settings - all ratings (no minimum restriction)
+            self.rating = '0'
             
             # Sort by latest to get newest releases first
             self.sort_by = 'latest'
             
-            # Categorization for better organization
-            self.categorize_by = 'rating-genre'
+            # Categorization - now using movie name and year organization
+            self.categorize_by = 'none'
             
-            # Only get movies from recent years (last 5 years)
-            self.year_limit = datetime.now().year - 5
+            # All years (no year restriction)
+            self.year_limit = 0
             
             # Start from page 1
             self.page = 1

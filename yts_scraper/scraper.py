@@ -3,6 +3,8 @@ import sys
 import math
 import json
 import csv
+import pickle
+from datetime import datetime, timedelta
 from concurrent.futures.thread import ThreadPoolExecutor
 import requests
 from tqdm import tqdm
@@ -36,6 +38,9 @@ class Scraper:
         self.downloaded_movie_ids = None
         self.pbar = None
 
+        # Cache system for persistent tracking
+        self.cache_file = os.path.join(os.path.dirname(__file__), 'scraper_cache.json')
+        self.processed_movies_cache = self._load_cache()
 
         # Set output directory
         if args.output:
@@ -59,6 +64,66 @@ class Scraper:
         # YTS API has a limit of 50 entries
         self.limit = 50
 
+    def _load_cache(self):
+        """Load the persistent cache of processed movies"""
+        try:
+            if os.path.exists(self.cache_file):
+                with open(self.cache_file, 'r') as f:
+                    cache_data = json.load(f)
+                    
+                # Clean old entries (older than 30 days to keep cache fresh)
+                cutoff_date = (datetime.now() - timedelta(days=30)).isoformat()
+                cleaned_cache = {
+                    movie_id: data for movie_id, data in cache_data.items()
+                    if data.get('last_seen', '1900-01-01') > cutoff_date
+                }
+                
+                print(f"Loaded cache with {len(cleaned_cache)} previously processed movies")
+                return cleaned_cache
+        except Exception as e:
+            print(f"Warning: Could not load cache: {e}")
+        
+        return {}
+
+    def _save_cache(self):
+        """Save the persistent cache of processed movies"""
+        try:
+            with open(self.cache_file, 'w') as f:
+                json.dump(self.processed_movies_cache, f, indent=2)
+            print(f"Saved cache with {len(self.processed_movies_cache)} processed movies")
+        except Exception as e:
+            print(f"Warning: Could not save cache: {e}")
+
+    def _is_movie_cached(self, movie_id, movie_name, year, quality):
+        """Check if a movie is already cached and up to date"""
+        if movie_id not in self.processed_movies_cache:
+            return False
+            
+        cached_movie = self.processed_movies_cache[movie_id]
+        
+        # Check if this specific quality was already processed
+        cached_qualities = cached_movie.get('qualities', [])
+        if quality in cached_qualities:
+            print(f"Cache hit: {movie_name} ({year}) - {quality} already processed")
+            return True
+            
+        return False
+
+    def _cache_movie(self, movie_id, movie_name, year, quality, status='processed'):
+        """Add movie to cache"""
+        if movie_id not in self.processed_movies_cache:
+            self.processed_movies_cache[movie_id] = {
+                'name': movie_name,
+                'year': year,
+                'qualities': [],
+                'first_seen': datetime.now().isoformat(),
+                'last_seen': datetime.now().isoformat()
+            }
+        
+        # Update last seen and add quality if not already present
+        self.processed_movies_cache[movie_id]['last_seen'] = datetime.now().isoformat()
+        if quality not in self.processed_movies_cache[movie_id]['qualities']:
+            self.processed_movies_cache[movie_id]['qualities'].append(quality)
 
     # Connect to API and extract initial data
     def __get_api_data(self):
@@ -205,7 +270,7 @@ class Scraper:
         print('Download finished.')
 
 
-    # Determine which .torrent files to download
+    # Determine which magnet links to collect
     def __filter_torrents(self, movie):
         movie_id = str(movie.get('id'))
         movie_rating = movie.get('rating')
@@ -219,15 +284,13 @@ class Scraper:
         if year < self.year_limit:
             return
 
-
-
         # Every torrent option for current movie
         torrents = movie.get('torrents')
         # Remove illegal file/directory characters
         movie_name = movie.get('title_long').translate({ord(i):None for i in "'/\:*?<>|"})
 
-        # Used to multiple download messages for multi-folder categorization
-        is_download_successful = False
+        # Used to track successful processing
+        is_processing_successful = False
 
         if movie_id in self.downloaded_movie_ids:
             return
@@ -243,74 +306,91 @@ class Scraper:
         for torrent in torrents:
             quality = torrent.get('quality')
             torrent_url = torrent.get('url')
+            torrent_hash = torrent.get('hash')
+            
+            # Check cache before processing
+            if self._is_movie_cached(movie_id, movie_name, year, quality):
+                continue
+            
             if self.categorize and self.categorize != 'rating':
                 if self.quality == 'all' or self.quality == quality:
-                    bin_content_tor = (requests.get(torrent.get('url'))).content
-
                     for genre in movie_genres:
-                        path = self.__build_path(movie_name, movie_rating, quality, genre, imdb_id)
-                        is_download_successful = self.__download_file(bin_content_tor, bin_content_img, path, movie_name, movie_id)
+                        path = self.__build_path(movie_name, movie_rating, quality, genre, imdb_id, year)
+                        is_processing_successful = self.__save_magnet_info(torrent_hash, bin_content_img, path, movie_name, movie_id, quality, imdb_id, year)
             else:
                 if self.quality == 'all' or self.quality == quality:
                     self.__log_csv(movie_id, imdb_id, movie_name_short, year, language, movie_rating, quality, yts_url, torrent_url)
-                    bin_content_tor = (requests.get(torrent_url)).content
-                    path = self.__build_path(movie_name, movie_rating, quality, None, imdb_id)
-                    is_download_successful = self.__download_file(bin_content_tor, bin_content_img, path, movie_name, movie_id)
+                    path = self.__build_path(movie_name, movie_rating, quality, None, imdb_id, year)
+                    is_processing_successful = self.__save_magnet_info(torrent_hash, bin_content_img, path, movie_name, movie_id, quality, imdb_id, year)
 
-            if is_download_successful and self.quality == 'all' or self.quality == quality:
-                tqdm.write('Downloaded {} {}'.format(movie_name, quality.upper()))
+            if is_processing_successful and self.quality == 'all' or self.quality == quality:
+                tqdm.write('Processed {} {}'.format(movie_name, quality.upper()))
                 self.pbar.update()
 
-
     # Creates a file path for each download
-    def __build_path(self, movie_name, rating, quality, movie_genre, imdb_id):
+    def __build_path(self, movie_name, rating, quality, movie_genre, imdb_id, year):
         if self.csv_only:
             return
 
         directory = self.directory
 
-        if self.categorize == 'rating':
-            directory += '/' + str(math.trunc(rating)) + '+'
-        elif self.categorize == 'genre':
-            directory += '/' + str(movie_genre)
-        elif self.categorize == 'rating-genre':
-            directory += '/' + str(math.trunc(rating)) + '+/' + movie_genre
-        elif self.categorize == 'genre-rating':
-            directory += '/' + str(movie_genre) + '/' + str(math.trunc(rating)) + '+'
-
-        if self.poster:
-            directory += '/' + movie_name
+        # New organization: Movie.Name (year)/
+        directory += '/' + movie_name + ' (' + str(year) + ')'
 
         os.makedirs(directory, exist_ok=True)
 
         if self.imdb_id:
-            filename = '{} {} - {}'.format(movie_name, quality, imdb_id)
+            filename = '{}.{}-{}'.format(movie_name, quality, imdb_id)
         else:
-            filename = '{} {}'.format(movie_name, quality)
+            filename = '{}.{}'.format(movie_name, quality)
 
         path = os.path.join(directory, filename)
         return path
 
-    # Write binary content to .torrent file
-    def __download_file(self, bin_content_tor, bin_content_img, path, movie_name, movie_id):
+    # Save magnet link information instead of downloading .torrent files
+    def __save_magnet_info(self, torrent_hash, bin_content_img, path, movie_name, movie_id, quality=None, imdb_id=None, year=None):
         if self.csv_only:
             return
 
         if self.existing_file_counter > 10 and not self.skip_exit_condition:
             self.__prompt_existing_files()
 
-        if os.path.isfile(path):
-            tqdm.write('{}: File already exists. Skipping...'.format(movie_name))
+        # Check if magnet info file already exists
+        magnet_file_path = path + '.magnet'
+        if os.path.isfile(magnet_file_path):
+            tqdm.write('{}: Magnet info already exists. Skipping...'.format(movie_name))
             self.existing_file_counter += 1
+            # Still cache it as processed
+            if quality:
+                self._cache_movie(movie_id, movie_name, year, quality)
             return False
 
-        with open(path + '.torrent', 'wb') as torrent:
-            torrent.write(bin_content_tor)
-        if self.poster:
-            with open(path + '.jpg', 'wb') as torrent:
-                torrent.write(bin_content_img)
+        # Create magnet link from hash
+        magnet_link = f"magnet:?xt=urn:btih:{torrent_hash}&dn={movie_name.replace(' ', '+')}&tr=udp://open.demonii.com:1337&tr=udp://tracker.openbittorrent.com:80&tr=udp://tracker.coppersurfer.tk:6969&tr=udp://glotorrents.pw:6969/announce&tr=udp://tracker.opentrackr.org:1337/announce&tr=udp://torrent.gresille.org:80/announce&tr=udp://p4p.arenabg.com:1337&tr=udp://tracker.leechers-paradise.org:6969"
+
+        # Save magnet link and metadata to file
+        magnet_info = {
+            'magnet_link': magnet_link,
+            'hash': torrent_hash,
+            'movie_name': movie_name,
+            'year': year,
+            'quality': quality,
+            'imdb_id': imdb_id,
+            'movie_id': movie_id,
+            'created_at': datetime.now().isoformat()
+        }
+
+        with open(magnet_file_path, 'w') as magnet_file:
+            json.dump(magnet_info, magnet_file, indent=2)
+
+        # Save poster image if requested
+        if self.poster and bin_content_img:
+            with open(path + '.jpg', 'wb') as img_file:
+                img_file.write(bin_content_img)
 
         self.downloaded_movie_ids.append(movie_id)
+        if quality:
+            self._cache_movie(movie_id, movie_name, year, quality)
         self.existing_file_counter = 0
         return True
 
@@ -357,3 +437,5 @@ class Scraper:
     def download(self):
         self.__get_api_data()
         self.__initialize_download()
+        # Save cache after download completes
+        self._save_cache()

@@ -128,6 +128,37 @@ class Scraper:
         if quality not in self.processed_movies_cache[movie_id]['qualities']:
             self.processed_movies_cache[movie_id]['qualities'].append(quality)
 
+    def _make_request_with_retry(self, url, headers, max_retries=3, timeout=15):
+        """Make HTTP request with retry logic and exponential backoff"""
+        import time
+        
+        for attempt in range(max_retries):
+            try:
+                response = requests.get(url, timeout=timeout, verify=True, headers=headers)
+                response.raise_for_status()
+                return response
+            except requests.exceptions.Timeout as e:
+                if attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) * 2  # Exponential backoff: 2s, 4s, 8s
+                    tqdm.write(f'⏳ Request timeout (attempt {attempt + 1}/{max_retries}). Retrying in {wait_time}s...')
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    tqdm.write(f'❌ Max retries exceeded for URL: {url}')
+                    raise
+            except requests.exceptions.ConnectionError as e:
+                if attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) * 3  # Longer wait for connection errors
+                    tqdm.write(f'🔌 Connection error (attempt {attempt + 1}/{max_retries}). Retrying in {wait_time}s...')
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    tqdm.write(f'❌ Connection failed after {max_retries} attempts')
+                    raise
+            except requests.exceptions.RequestException as e:
+                tqdm.write(f'❌ Request error: {e}')
+                raise
+
     # Connect to API and extract initial data
     def __get_api_data(self):
         # Formatted URL string
@@ -149,19 +180,9 @@ class Scraper:
 
         # Exception handling for connection errors
         try:
-            req = requests.get(url, timeout=5, verify=True, headers=headers)
-            req.raise_for_status()
-        except requests.exceptions.HTTPError as errh:
-            print('HTTP Error:', errh)
-            sys.exit(0)
-        except requests.exceptions.ConnectionError as errc:
-            print('Error Connecting:', errc)
-            sys.exit(0)
-        except requests.exceptions.Timeout as errt:
-            print('Timeout Error:', errt)
-            sys.exit(0)
-        except requests.exceptions.RequestException as err:
-            print('There was an error.', err)
+            req = self._make_request_with_retry(url, headers)
+        except Exception as e:
+            print(f"Error during API request: {e}")
             sys.exit(0)
 
         # Exception handling for JSON decoding errors
@@ -247,14 +268,20 @@ class Scraper:
             except:
                 print('Error occurred during fake user agent generation.')
 
-            # Send request to API
-            page_response = requests.get(url, timeout=5, verify=True, headers=headers).json()
-
-            movies = page_response.get('data').get('movies')
+            # Send request to API with retry logic
+            try:
+                page_response = self._make_request_with_retry(url, headers)
+                data = page_response.json()
+                movies = data.get('data', {}).get('movies')
+            except Exception as e:
+                tqdm.write(f'⚠️  Failed to fetch page {page} after retries: {e}')
+                tqdm.write(f'🔄 Continuing with next page...')
+                continue
 
             # Movies found on current page
             if not movies:
-                print('Could not find any movies on this page.\n')
+                tqdm.write('Could not find any movies on this page.\n')
+                continue
 
             if self.multiprocess:
                 # Wrap tqdm around executor to update pbar with every process

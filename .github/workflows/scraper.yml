@@ -43,13 +43,13 @@ jobs:
         PYTHONPATH: ${{ github.workspace }}
         
     - name: Upload cached torrents to Real-Debrid
-      continue-on-error: true
       run: |
         if [ -z "$REAL_DEBRID_API_KEY" ]; then
           echo "⚠️  REAL_DEBRID_API_KEY not set, skipping Real-Debrid upload"
           echo "💡 To enable Real-Debrid integration, add your API key as a GitHub secret"
           exit 0
         fi
+        
         echo "🔍 Checking for cached torrents on Real-Debrid..."
         echo "📂 Torrent directory: $TORRENT_DIR"
         echo "🔢 Max uploads per run: $MAX_CACHED_UPLOADS_PER_RUN"
@@ -60,6 +60,11 @@ jobs:
           exit 1
         fi
         
+        # Check Python environment
+        echo "🐍 Python version: $(python --version)"
+        echo "🔍 Checking installed packages..."
+        pip list | grep -E "(requests|tqdm)"
+        
         # Test script syntax first
         echo "🔍 Testing script syntax..."
         python -m py_compile real_debrid_cached_uploader.py || {
@@ -67,10 +72,11 @@ jobs:
           exit 1
         }
         
-        # Run the cached uploader with error handling
+        # Run the cached uploader with verbose error handling
         echo "🚀 Running cached uploader..."
-        python real_debrid_cached_uploader.py || {
+        python real_debrid_cached_uploader.py 2>&1 || {
           echo "❌ Real-Debrid cached uploader failed with exit code $?"
+          echo "📋 Last few lines of output above should show the error"
           exit 1
         }
       env:

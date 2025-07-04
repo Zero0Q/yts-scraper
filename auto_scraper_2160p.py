@@ -72,6 +72,9 @@ def create_args_for_2160p():
             
             # Don't use CSV only mode - we want the torrent files
             self.csv_only = False
+            
+            # Auto-continue when finding existing files (for automated environments)
+            self.auto_continue = True
     
     return Args()
 

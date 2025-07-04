@@ -30,6 +30,9 @@ class Scraper:
         self.imdb_id = args.imdb_id
         self.multiprocess = args.multiprocess
         self.csv_only = args.csv_only
+        
+        # Auto-continue parameter for automated environments (GitHub Actions, etc.)
+        self.auto_continue = getattr(args, 'auto_continue', False)
 
         self.movie_count = None
         self.url = None
@@ -421,6 +424,12 @@ class Scraper:
 
     # Is triggered when the script hits 10 consecutive existing files
     def __prompt_existing_files(self):
+        if self.auto_continue:
+            tqdm.write('Auto-continuing mode: Skipping prompt and continuing download...')
+            self.existing_file_counter = 0
+            self.skip_exit_condition = True
+            return
+
         tqdm.write('Found 10 existing files in a row. Do you want to keep downloading? Y/N')
         exit_answer = input()
 

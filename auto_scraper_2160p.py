@@ -49,8 +49,9 @@ def create_args_for_2160p():
             # Rating settings - all ratings (no minimum restriction)
             self.rating = '0'
             
-            # Sort by latest to get newest releases first
-            self.sort_by = 'latest'
+            # Sort by rating to get highest quality movies first, then by date
+            # This ensures we get all movies, not just latest
+            self.sort_by = 'rating'  # Changed from 'latest' to get full catalog
             
             # Categorization - now using movie name and year organization
             self.categorize_by = 'none'
